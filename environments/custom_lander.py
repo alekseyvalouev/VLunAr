@@ -8,6 +8,7 @@ from gymnasium import error, spaces
 from gymnasium.error import DependencyNotInstalled
 from gymnasium.utils import EzPickle
 from gymnasium.utils.step_api_compatibility import step_api_compatibility
+from gymnasium.wrappers import RecordVideo
 
 
 try:
@@ -880,4 +881,5 @@ class LunarLanderContinuous:
 
 if __name__ == "__main__":
     env = gym.make("LunarLander-v3", render_mode="rgb_array")
+    env = RecordVideo(env, video_folder="videos", name_prefix="heuristic", episode_trigger=lambda x: True)
     demo_heuristic_lander(env, render=True)

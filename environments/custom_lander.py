@@ -50,8 +50,8 @@ MAIN_ENGINE_Y_LOCATION = (
     4  # The Y location of the main engine on the body of the Lander.
 )
 
-VIEWPORT_W = 600
-VIEWPORT_H = 400
+VIEWPORT_W = 224
+VIEWPORT_H = 224
 
 
 class ContactDetector(contactListener):

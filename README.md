@@ -107,7 +107,7 @@ Also evaluate generalization to novel lander states and new natural-language com
 
 ## Action Items (Project TODO)
 
-- [ ] Port 224×224 renderer  
+- [x] Port 224×224 renderer  
 - [ ] Train DQN for hover task  
 - [ ] Train DQN for strafe task  
 - [ ] Train DQN for takeoff task  
@@ -126,4 +126,5 @@ MIT License (or institution-specific license to be determined)
 
 ## Acknowledgements
 Thanks to mentor Sandeep, and to the developers of OpenVLA, Gymnasium, and DINOv2 for enabling this project.
+
 

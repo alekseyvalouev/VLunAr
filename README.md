@@ -1,6 +1,6 @@
 # VLunAr: Vision-Language-Action Lunar Lander
 
-A fully approved project to develop a Vision-Language-Action (VLA) model capable of piloting a lunar lander using natural-language instructions. This project integrates reinforcement learning, deep vision models, and language-conditioned action generation to build an intelligent lunar-mission control system.
+Vision-Language-Action (VLA) model capable of piloting a lunar lander using natural-language instructions. This project integrates reinforcement learning, deep vision models, and language-conditioned action generation to build an intelligent lunar-mission control system.
 
 ---
 
@@ -126,3 +126,4 @@ MIT License (or institution-specific license to be determined)
 
 ## Acknowledgements
 Thanks to mentor Sandeep, and to the developers of OpenVLA, Gymnasium, and DINOv2 for enabling this project.
+

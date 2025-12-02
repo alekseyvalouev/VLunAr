@@ -4,4 +4,16 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = ["numpy", "gymnasium", "swig", "gymnasium[box2d]", "moviepy", "gymnasium[other]"]
+dependencies = [
+    "numpy",
+    "gymnasium",
+    "gymnasium[box2d]",
+    "moviepy",
+    "gymnasium[other]",
+    "swig",
+    "torch",
+    "transformers",
+    "accelerate",
+    "pillow",
+    "torchvision",
+]

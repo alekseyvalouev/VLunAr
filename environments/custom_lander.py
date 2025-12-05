@@ -789,6 +789,8 @@ class LunarLander(gym.Env, EzPickle):
                         self.surf, color=obj.color2, points=path, closed=True
                     )
 
+                # Draw helipad flags
+                helipad_color = getattr(self, 'custom_helipad_color', (204, 204, 0))
                 for x in [self.helipad_x1, self.helipad_x2]:
                     x = x * SCALE
                     flagy1 = self.helipad_y * SCALE
@@ -802,7 +804,7 @@ class LunarLander(gym.Env, EzPickle):
                     )
                     pygame.draw.polygon(
                         self.surf,
-                        color=(204, 204, 0),
+                        color=helipad_color,
                         points=[
                             (x, flagy2),
                             (x, flagy2 - 10),
@@ -812,8 +814,37 @@ class LunarLander(gym.Env, EzPickle):
                     gfxdraw.aapolygon(
                         self.surf,
                         [(x, flagy2), (x, flagy2 - 10), (x + 25, flagy2 - 5)],
-                        (204, 204, 0),
+                        helipad_color,
                     )
+                
+                # Draw extra flags if specified
+                if hasattr(self, 'custom_extra_flags'):
+                    for flag_x1, flag_x2, flag_y, flag_color in self.custom_extra_flags:
+                        for x in [flag_x1, flag_x2]:
+                            x = x * SCALE
+                            flagy1 = flag_y * SCALE
+                            flagy2 = flagy1 + 50
+                            pygame.draw.line(
+                                self.surf,
+                                color=(255, 255, 255),
+                                start_pos=(x, flagy1),
+                                end_pos=(x, flagy2),
+                                width=1,
+                            )
+                            pygame.draw.polygon(
+                                self.surf,
+                                color=flag_color,
+                                points=[
+                                    (x, flagy2),
+                                    (x, flagy2 - 10),
+                                    (x + 25, flagy2 - 5),
+                                ],
+                            )
+                            gfxdraw.aapolygon(
+                                self.surf,
+                                [(x, flagy2), (x, flagy2 - 10), (x + 25, flagy2 - 5)],
+                                flag_color,
+                            )
 
         self.surf = pygame.transform.flip(self.surf, False, True)
 

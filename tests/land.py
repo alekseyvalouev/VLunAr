@@ -2,8 +2,10 @@
 
 import argparse
 from pathlib import Path
+import random
 
 import gymnasium as gym
+import numpy as np
 
 from models.dqn_class import DQNAgent
 from environments.custom_lander import (
@@ -14,7 +16,107 @@ from environments.custom_lander import (
 )
 
 
-def make_env(render_mode: str = "rgb_array"):
+class ExtraFlagsWrapper(gym.Wrapper):
+    """Wrapper that adds extra visual flags during rendering without affecting observations."""
+    
+    def __init__(self, env, add_extra_flags=False, seed=None):
+        super().__init__(env)
+        self.add_extra_flags = add_extra_flags
+        self.extra_flag_positions = []  # List of (x1, x2, y, color) tuples
+        self.helipad_color = None
+        self.helipad_color_name = None
+        self.extra_flag_color_name = None
+        self.rng = np.random.RandomState(seed)
+        
+        # Color options (RGB tuples)
+        self.color_options = {
+            'red': (255, 0, 0),
+            'orange': (255, 165, 0),
+            'yellow': (255, 255, 0),
+            'green': (0, 255, 0),
+            'blue': (0, 0, 255),
+            'purple': (128, 0, 128),
+        }
+    
+    def reset(self, **kwargs):
+        obs, info = self.env.reset(**kwargs)
+        
+        if self.add_extra_flags:
+            # Access the unwrapped environment to get terrain info
+            unwrapped = self.env.unwrapped
+            
+            # Get helipad location
+            helipad_x1 = unwrapped.helipad_x1
+            helipad_x2 = unwrapped.helipad_x2
+            helipad_y = unwrapped.helipad_y
+            
+            # Get terrain information
+            W = VIEWPORT_W / SCALE
+            H = VIEWPORT_H / SCALE
+            CHUNKS = 11
+            chunk_x = [W / (CHUNKS - 1) * i for i in range(CHUNKS)]
+            
+            # Find helipad chunk indices
+            helipad_center = CHUNKS // 2
+            helipad_start_idx = helipad_center - 2
+            helipad_end_idx = helipad_center + 2
+            
+            # Available chunks for extra flags (not overlapping with helipad)
+            # Left side: chunks 0 to helipad_start_idx-1 (exclusive of helipad)
+            # Right side: chunks helipad_end_idx+1 to CHUNKS-1 (exclusive of helipad)
+            left_chunks = list(range(0, helipad_start_idx))
+            right_chunks = list(range(helipad_end_idx + 1, CHUNKS))
+            
+            # Randomly choose left or right side
+            if len(left_chunks) > 0 and len(right_chunks) > 0:
+                side = self.rng.choice(['left', 'right'])
+                available_chunks = left_chunks if side == 'left' else right_chunks
+            elif len(left_chunks) > 0:
+                available_chunks = left_chunks
+            elif len(right_chunks) > 0:
+                available_chunks = right_chunks
+            else:
+                available_chunks = []
+            
+            if len(available_chunks) >= 1:
+                # Pick a random chunk for the extra flags
+                center_idx = self.rng.choice(available_chunks)
+                
+                # Place flags around this chunk (similar to helipad)
+                flag_idx1 = max(0, center_idx - 1)
+                flag_idx2 = min(CHUNKS - 1, center_idx + 1)
+                
+                extra_flag_x1 = chunk_x[flag_idx1]
+                extra_flag_x2 = chunk_x[flag_idx2]
+                
+                # Estimate the terrain height at this location
+                # Use helipad_y as a reasonable default (flat terrain)
+                extra_flag_y = helipad_y
+                
+                # Randomly select colors for both flag pairs
+                color_names = list(self.color_options.keys())
+                self.rng.shuffle(color_names)
+                helipad_color_name = color_names[0]
+                extra_flag_color_name = color_names[1]
+                
+                self.helipad_color = self.color_options[helipad_color_name]
+                extra_flag_color = self.color_options[extra_flag_color_name]
+                
+                # Store for rendering
+                self.extra_flag_positions = [(extra_flag_x1, extra_flag_x2, extra_flag_y, extra_flag_color)]
+                
+                # Store color names for printing
+                self.helipad_color_name = helipad_color_name
+                self.extra_flag_color_name = extra_flag_color_name
+                
+                # Modify the unwrapped environment to use custom colors
+                unwrapped.custom_helipad_color = self.helipad_color
+                unwrapped.custom_extra_flags = self.extra_flag_positions
+        
+        return obs, info
+
+
+def make_env(render_mode: str = "rgb_array", add_extra_flags: bool = False, seed: int = None):
     """
     Create the custom LunarLander environment and start the lander
     above the helipad with no initial impulse, for the landing task.
@@ -37,6 +139,11 @@ def make_env(render_mode: str = "rgb_array"):
         init_y=init_y,
         random_initial_force=False,  # no random kick; we want a clean descent
     )
+    
+    # Wrap with extra flags if requested
+    if add_extra_flags:
+        env = ExtraFlagsWrapper(env, add_extra_flags=True, seed=seed)
+    
     return env
 
 
@@ -45,9 +152,11 @@ def run_land_agent(
     video_folder: str = "videos/land",
     episodes: int = 1,
     max_steps: int = 1000,
+    add_extra_flags: bool = False,
 ):
     # base env (custom, starting above the pad)
-    env = make_env(render_mode="rgb_array")
+    # Use None for seed to get random behavior each time
+    env = make_env(render_mode="rgb_array", add_extra_flags=add_extra_flags, seed=None)
 
     # create video folder
     video_path = Path(video_folder)
@@ -85,7 +194,18 @@ def run_land_agent(
             steps += 1
 
         print(f"[LAND] Episode {ep+1}/{episodes} | Return: {ep_return:.1f}")
-
+    
+    # Print flag colors if extra flags were added
+    if add_extra_flags and isinstance(env.env, ExtraFlagsWrapper):
+        wrapper = env.env
+        if (hasattr(wrapper, 'helipad_color_name') and 
+            hasattr(wrapper, 'extra_flag_color_name') and
+            wrapper.helipad_color_name is not None and 
+            wrapper.extra_flag_color_name is not None):
+            print(f"\nFlag Colors:")
+            print(f"  Helipad flags: {wrapper.helipad_color_name.capitalize()}")
+            print(f"  Extra flags: {wrapper.extra_flag_color_name.capitalize()}")
+    
     env.close()
     print(f"Videos saved to: {video_path.absolute()}")
 
@@ -95,7 +215,7 @@ def main():
     parser.add_argument(
         "--checkpoint",
         type=str,
-        default="checkpoints/land/best.pt",
+        default="checkpoints/strafe_down/best.pt",
     )
     parser.add_argument(
         "--video-folder",
@@ -112,6 +232,12 @@ def main():
         type=int,
         default=1000,
     )
+    parser.add_argument(
+        "--add-flags",
+        action="store_true",
+        default=False,
+        help="Add extra pair of flags at random location with random colors",
+    )
     args = parser.parse_args()
 
     run_land_agent(
@@ -119,6 +245,7 @@ def main():
         video_folder=args.video_folder,
         episodes=args.episodes,
         max_steps=args.max_steps,
+        add_extra_flags=args.add_flags,
     )
 
 

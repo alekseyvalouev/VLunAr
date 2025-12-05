@@ -249,11 +249,13 @@ class LunarLander(gym.Env, EzPickle):
         init_x: float | None = None,
         init_y: float | None = None,
         random_initial_force: bool = True,
+        max_height: float | None = None,
     ):
         
         self.custom_init_x = init_x
         self.custom_init_y = init_y
         self.random_initial_force = random_initial_force
+        self.max_height = max_height
 
 
         EzPickle.__init__(
@@ -698,7 +700,7 @@ class LunarLander(gym.Env, EzPickle):
         reward -= s_power * 0.03
 
         terminated = False
-        if self.game_over or abs(state[0]) >= 1.0:
+        if self.game_over or abs(state[0]) >= 1.0 or (self.max_height is not None and state[1] >= self.max_height):
             terminated = True
             reward = -100
         if not self.lander.awake:

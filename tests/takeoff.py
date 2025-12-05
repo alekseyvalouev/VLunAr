@@ -15,7 +15,7 @@ from environments.custom_lander import (
 )
 
 
-def make_env(render_mode: str = "rgb_array"):
+def make_env(render_mode: str = "rgb_array", max_height: float = 0.7):
     """
     Create the custom LunarLander environment and start the lander
     resting on the surface (legs on the helipad), with no initial impulse.
@@ -40,6 +40,7 @@ def make_env(render_mode: str = "rgb_array"):
         init_x=init_x,
         init_y=init_y,
         random_initial_force=False,  # no random kick; we want a clean takeoff
+        max_height=max_height,
     )
     return env
 
@@ -49,9 +50,10 @@ def run_takeoff_agent(
     video_folder: str = "videos/takeoff",
     episodes: int = 1,
     max_steps: int = 1000,
+    max_height: float = 0.7,
 ):
     # base env (custom, starting on the floor)
-    env = make_env(render_mode="rgb_array")
+    env = make_env(render_mode="rgb_array", max_height=max_height)
 
     # create video folder
     video_path = Path(video_folder)
@@ -116,6 +118,11 @@ def main():
         type=int,
         default=1000,
     )
+    parser.add_argument(
+        "--max-height",
+        type=float,
+        default=0.7,
+    )
     args = parser.parse_args()
 
     run_takeoff_agent(
@@ -123,6 +130,7 @@ def main():
         video_folder=args.video_folder,
         episodes=args.episodes,
         max_steps=args.max_steps,
+        max_height=args.max_height,
     )
 
 

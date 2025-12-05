@@ -39,6 +39,7 @@ SIDE_ENGINE_POWER = 0.6
 
 INITIAL_RANDOM = 1000.0  # Set 1500 to make game harder
 
+'''
 LANDER_POLY = [(-14, +17), (-17, 0), (-17, -10), (+17, -10), (+17, 0), (+14, +17)]
 LEG_AWAY = 20
 LEG_DOWN = 18
@@ -50,6 +51,33 @@ SIDE_ENGINE_AWAY = 12
 MAIN_ENGINE_Y_LOCATION = (
     4  # The Y location of the main engine on the body of the Lander.
 )
+'''
+# --- 2× smaller lander geometry ---
+
+# Body shape (all coordinates halved)
+LANDER_POLY = [
+    (-7,   +8.5),
+    (-8.5,  0),
+    (-8.5, -5),
+    ( 8.5, -5),
+    ( 8.5,  0),
+    ( 7,   +8.5),
+]
+
+# Legs scaled 0.5×
+LEG_AWAY = 10        # was 20
+LEG_DOWN = 9         # was 18
+LEG_W, LEG_H = 1, 4  # was 2, 8
+
+# Leave torque unchanged (physics parameter)
+LEG_SPRING_TORQUE = 40
+
+# Engines scaled 0.5×
+SIDE_ENGINE_HEIGHT = 7   # was 14
+SIDE_ENGINE_AWAY = 6     # was 12
+
+# Main engine vertical offset also halved
+MAIN_ENGINE_Y_LOCATION = 2   # was 4
 
 VIEWPORT_W = 224
 VIEWPORT_H = 224

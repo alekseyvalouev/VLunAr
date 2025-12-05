@@ -231,9 +231,71 @@ class DQNAgent:
             path,
         )
 
-    def load(self, path: str, map_location: Optional[str] = None) -> None:
-        checkpoint = torch.load(path, map_location=map_location or self.device)
-        self.policy_net.load_state_dict(checkpoint["policy_state_dict"])
-        self.target_net.load_state_dict(checkpoint["target_state_dict"])
-        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    def load(self, path: str, map_location: Optional[torch.device] = None) -> None:
+        # Explicitly set weights_only=False for compatibility with PyTorch 2.6+
+        checkpoint = torch.load(
+            path,
+            map_location=map_location or self.device,
+            weights_only=False,
+        )
+
+        # --- Case 1: New format (current save()) ---
+        if "policy_state_dict" in checkpoint:
+            self.policy_net.load_state_dict(checkpoint["policy_state_dict"])
+            # if no separate target state dict, just mirror policy
+            target_sd = checkpoint.get("target_state_dict")
+            if target_sd is not None:
+                self.target_net.load_state_dict(target_sd)
+            else:
+                self.update_target_network()
+
+            opt_state = checkpoint.get("optimizer_state_dict")
+            if opt_state is not None:
+                self.optimizer.load_state_dict(opt_state)
+
+        # --- Case 2: Older format with explicit q_network_* keys ---
+        elif "q_network_state_dict" in checkpoint:
+            self.policy_net.load_state_dict(checkpoint["q_network_state_dict"])
+            if "target_q_network_state_dict" in checkpoint:
+                self.target_net.load_state_dict(
+                    checkpoint["target_q_network_state_dict"]
+                )
+            else:
+                self.update_target_network()
+
+            opt_state = checkpoint.get("optimizer_state_dict")
+            if opt_state is not None:
+                self.optimizer.load_state_dict(opt_state)
+
+        # --- Case 3: Old minimal format: just a single state_dict + metadata ---
+        elif "state_dict" in checkpoint:
+            state_dict = checkpoint["state_dict"]
+            hidden_sizes = checkpoint.get("hidden_sizes", (128, 128))
+            state_dim = checkpoint.get("state_dim", self.state_dim)
+            action_dim = checkpoint.get("action_dim", self.action_dim)
+
+            # Update agent's idea of dims
+            self.state_dim = state_dim
+            self.action_dim = action_dim
+
+            # Rebuild networks to match the checkpoint architecture
+            self.policy_net = QNetwork(state_dim, action_dim, hidden_sizes).to(self.device)
+            self.target_net = QNetwork(state_dim, action_dim, hidden_sizes).to(self.device)
+
+            # Fresh optimizer tied to the new policy_net params
+            # (optimizer state wasn't stored in this old format anyway)
+            lr = self.optimizer.param_groups[0]["lr"] if self.optimizer.param_groups else 1e-3
+            self.optimizer = optim.Adam(self.policy_net.parameters(), lr=lr)
+
+            self.policy_net.load_state_dict(state_dict)
+            self.update_target_network()
+
+        else:
+            # If we ever hit a new weird format, this will tell us the keys.
+            raise KeyError(
+                f"Unrecognized checkpoint format. Available keys: {list(checkpoint.keys())}"
+            )
+
+        # Make sure target net is synced & in eval mode
         self.update_target_network()
+        self.target_net.eval()

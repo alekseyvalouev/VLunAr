@@ -881,5 +881,5 @@ class LunarLanderContinuous:
 
 if __name__ == "__main__":
     env = gym.make("LunarLander-v3", render_mode="rgb_array")
-    env = RecordVideo(env, video_folder="videos", name_prefix="heuristic", episode_trigger=lambda x: True)
+    env = RecordVideo(env, video_folder="videos", name_prefix="custom", episode_trigger=lambda x: True)
     demo_heuristic_lander(env, render=True)

@@ -3,4 +3,5 @@ uv.lock
 videos/*
 
 __pycache__
-checkpoints/*
+checkpoints/*__pycache__/
+*.pyc

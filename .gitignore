@@ -4,4 +4,5 @@ videos/*
 
 __pycache__/
 checkpoints/*
+actions/*
 *.pyc

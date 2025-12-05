@@ -218,7 +218,16 @@ class LunarLander(gym.Env, EzPickle):
         enable_wind: bool = False,
         wind_power: float = 15.0,
         turbulence_power: float = 1.5,
+        init_x: float | None = None,
+        init_y: float | None = None,
+        random_initial_force: bool = True,
     ):
+        
+        self.custom_init_x = init_x
+        self.custom_init_y = init_y
+        self.random_initial_force = random_initial_force
+
+
         EzPickle.__init__(
             self,
             render_mode,
@@ -371,8 +380,15 @@ class LunarLander(gym.Env, EzPickle):
         self.moon.color2 = (0.0, 0.0, 0.0)
 
         # Create Lander body
-        initial_y = VIEWPORT_H / SCALE
-        initial_x = VIEWPORT_W / SCALE / 2
+        world_w = VIEWPORT_W / SCALE
+        world_h = VIEWPORT_H / SCALE
+
+        default_x = world_w / 2
+        default_y = world_h  # original start: top of screen
+
+        initial_x = self.custom_init_x if self.custom_init_x is not None else default_x
+        initial_y = self.custom_init_y if self.custom_init_y is not None else default_y
+        
         self.lander = self.world.CreateDynamicBody(
             position=(initial_x, initial_y),
             angle=0.0,
@@ -391,13 +407,14 @@ class LunarLander(gym.Env, EzPickle):
         self.lander.color2 = (77, 77, 128)
 
         # Apply the initial random impulse to the lander
-        self.lander.ApplyForceToCenter(
-            (
-                self.np_random.uniform(-INITIAL_RANDOM, INITIAL_RANDOM),
-                self.np_random.uniform(-INITIAL_RANDOM, INITIAL_RANDOM),
-            ),
-            True,
-        )
+        if self.random_initial_force:
+            self.lander.ApplyForceToCenter(
+                (
+                    self.np_random.uniform(-INITIAL_RANDOM, INITIAL_RANDOM),
+                    self.np_random.uniform(-INITIAL_RANDOM, INITIAL_RANDOM),
+                ),
+                True,
+            )
 
         if self.enable_wind:  # Initialize wind pattern based on index
             self.wind_idx = self.np_random.integers(-9999, 9999)

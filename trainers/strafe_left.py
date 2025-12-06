@@ -26,7 +26,7 @@ TASK_NAME = "strafe_left"
 #   state[2] = vel.x * (VIEWPORT_W / SCALE / 2) / FPS
 # So we compute the corresponding target value in state space.
 VX_SCALE = (VIEWPORT_W / SCALE / 2.0) / FPS
-TARGET_WORLD_VX = -1.0  # 1 m/s *to the left*
+TARGET_WORLD_VX = -1.5  # 1 m/s *to the left*
 TARGET_STATE_VX = TARGET_WORLD_VX * VX_SCALE
 
 
@@ -50,7 +50,9 @@ def make_env(render_mode: Optional[str] = None):
     env = LunarLander(
         render_mode=render_mode,
         continuous=False,           # DQN with discrete actions
-        random_initial_force=False  # no random push; we want controlled strafing
+        random_initial_force=True,
+        init_x=np.random.uniform(VIEWPORT_W / SCALE / 1.7, VIEWPORT_W / SCALE / 1.1),
+        init_y=np.random.uniform(VIEWPORT_H / SCALE / 2, VIEWPORT_H / SCALE / 1.1)
     )
     return env
 
@@ -59,73 +61,85 @@ def shaped_reward_strafe_left(
     next_state: np.ndarray,
     target_y: float,
     start_x: float,
-    # altitude / vertical motion
-    w_height: float = 8.0,             # stronger height penalty
-    w_vert_speed: float = 3.0,         # stronger vertical speed penalty
-    # horizontal strafing
-    w_horiz_speed: float = 3.0,
-    w_progress: float = 0.1,
-    w_right: float = 10.0,             # penalty for moving right of start_x
-    # orientation
-    w_angle: float = 4.0,              # keep angle near 0 (upright)
-    w_ang_speed: float = 0.5,          # discourage spinning
-    upside_down_penalty: float = 10.0, # big penalty if |angle| > pi/2
+    # STRONG penalties for unwanted behavior
+    w_height_change: float = 50.0,      # VERY STRONG: any height change is bad
+    w_vert_speed: float = 40.0,         # VERY STRONG: any vertical motion is bad
+    w_move_right: float = 100.0,        # EXTREMELY STRONG: moving right is forbidden
+    # Smooth leftward motion
+    w_speed_match: float = 20.0,        # STRONG: match target leftward speed
+    w_speed_smoothness: float = 15.0,   # penalize jerky speed changes
+    # Orientation (less critical but still important)
+    w_angle: float = 5.0,               # stay upright
+    w_ang_speed: float = 2.0,           # don't spin
+    upside_down_penalty: float = 20.0,  # big penalty if upside down
     step_penalty: float = 0.01,
 ) -> float:
     """
-    Reward for strafing LEFT at ~1 m/s while:
-      - maintaining altitude (near target_y),
-      - staying upright (angle ~ 0),
-      - and NEVER going right of the starting x position.
+    Reward for smooth, constant-velocity leftward strafing while:
+      - STRONGLY punishing ANY height change (up or down)
+      - EXTREMELY punishing ANY rightward movement
+      - Rewarding smooth, constant leftward velocity at target speed
+      - Penalizing jerky or erratic motion
 
     next_state: [x, y, x_dot, y_dot, theta, theta_dot, leg1, leg2]
-    target_y:   initial y at episode start (desired altitude)
-    start_x:    initial x at episode start (do NOT go to the right of this)
+    target_y:   initial y at episode start (must maintain this altitude)
+    start_x:    initial x at episode start (must NEVER exceed this)
     """
 
     x = next_state[0]
     y = next_state[1]
     x_dot = next_state[2]
     y_dot = next_state[3]
-    angle = next_state[4]       # 0 is upright, +/- is tilt
+    angle = next_state[4]
     ang_vel = next_state[5]
 
-    # --- Altitude control: stay close to initial height and avoid vertical motion ---
-    height_error = y - target_y      # want this ~ 0
-    vert_speed = y_dot               # want this ~ 0
+    # --- STRONG PENALTY: Any height change from target ---
+    height_error = abs(y - target_y)  # absolute deviation from target height
+    height_penalty = w_height_change * (height_error ** 2)
 
-    # --- Horizontal speed control: want x_dot ≈ TARGET_STATE_VX ---
+    # --- STRONG PENALTY: Any vertical motion (up or down) ---
+    vert_speed_penalty = w_vert_speed * (y_dot ** 2)
+
+    # --- EXTREME PENALTY: Moving right of starting position ---
+    # If x > start_x, we're moving right - this is FORBIDDEN
+    rightward_drift = max(0.0, x - start_x)
+    move_right_penalty = w_move_right * (rightward_drift ** 2)
+    
+    # Additional penalty for positive x velocity (moving right)
+    if x_dot > 0:
+        move_right_penalty += w_move_right * (x_dot ** 2)
+
+    # --- Smooth leftward velocity matching ---
+    # We want x_dot ≈ TARGET_STATE_VX (constant leftward speed)
     speed_error = x_dot - TARGET_STATE_VX
+    speed_match_penalty = w_speed_match * (speed_error ** 2)
+    
+    # --- Penalize speed jerkiness ---
+    # If speed deviates significantly from target, it's jerky
+    # This is already captured by speed_match_penalty, but we can add
+    # an extra term for very large deviations (jerky motion)
+    if abs(speed_error) > 0.3:  # threshold for "jerky"
+        jerkiness_penalty = w_speed_smoothness * (abs(speed_error) ** 2)
+    else:
+        jerkiness_penalty = 0.0
 
-    # --- Progress term: being farther left (negative x) is slightly good globally ---
-    progress_term = -x  # x normalized; more negative = better
+    # --- Orientation: stay upright and stable ---
+    angle_penalty = w_angle * (angle ** 2)
+    ang_vel_penalty = w_ang_speed * (ang_vel ** 2)
 
-    # --- Orientation: stay upright and avoid spinning ---
-    angle_error = angle           # want 0 rad
-    ang_vel_error = ang_vel       # want 0 rad/s
-
-    # --- Relative horizontal position: penalize going right of start_x ---
-    # If x > start_x, that's moving to the right; penalize (x - start_x)^2.
-    delta_x_from_start = max(0.0, x - start_x)
-
+    # --- Combine all penalties ---
     reward = (
-        # vertical / altitude
-        -w_height * (height_error ** 2)
-        -w_vert_speed * (vert_speed ** 2)
-        # horizontal strafing speed
-        -w_horiz_speed * (speed_error ** 2)
-        # global left progress
-        + w_progress * progress_term
-        # orientation
-        -w_angle * (angle_error ** 2)
-        -w_ang_speed * (ang_vel_error ** 2)
-        # do NOT move right of starting x
-        -w_right * (delta_x_from_start ** 2)
-        # small per-step penalty to encourage efficiency
-        - step_penalty
+        -height_penalty           # STRONG: no height changes
+        -vert_speed_penalty       # STRONG: no vertical motion
+        -move_right_penalty       # EXTREME: never move right
+        -speed_match_penalty      # match target leftward speed
+        -jerkiness_penalty        # smooth motion, not jerky
+        -angle_penalty            # stay upright
+        -ang_vel_penalty          # don't spin
+        -step_penalty             # small efficiency penalty
     )
 
-    # Extra harsh penalty when upside-down (more than 90 degrees tilt)
+    # Extra harsh penalty when upside-down
     if abs(angle) > (math.pi / 2):
         reward -= upside_down_penalty
 

@@ -36,8 +36,8 @@ def make_env(
     world_w = VIEWPORT_W / SCALE
     world_h = VIEWPORT_H / SCALE
 
-    init_x = world_w * init_x_frac
-    init_y = world_h * init_y_frac
+    init_x = np.random.uniform(world_w / 1.7, world_w / 1.1)
+    init_y = np.random.uniform(world_h / 2, world_h / 1.1)
 
     env = LunarLander(
         render_mode=render_mode,

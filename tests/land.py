@@ -5,6 +5,7 @@ from pathlib import Path
 import random
 
 import gymnasium as gym
+import h5py
 import numpy as np
 
 from models.dqn_class import DQNAgent
@@ -184,6 +185,7 @@ def run_land_agent(
     agent.load(checkpoint_path)
 
     all_episode_actions = []  # Store actions from all episodes
+    all_episode_frames = []  # Store frames from all episodes
     
     for ep in range(episodes):
         state, info = env.reset()
@@ -191,11 +193,20 @@ def run_land_agent(
         ep_return = 0.0
         steps = 0
         episode_actions = []  # Store actions for this episode
+        episode_frames = []  # Store frames for this episode
+        
+        # Render initial frame
+        frame = env.render()
+        episode_frames.append(frame)
 
         while not done and steps < max_steps:
             action = agent.select_action(state, epsilon=0.0)  # greedy
             episode_actions.append(int(action))  # Store the action
             next_state, reward, terminated, truncated, info = env.step(action)
+            
+            # Render frame after action
+            frame = env.render()
+            episode_frames.append(frame)
 
             done = terminated or truncated
             ep_return += reward
@@ -203,7 +214,8 @@ def run_land_agent(
             steps += 1
 
         all_episode_actions.append(episode_actions)
-        print(f"[LAND] Episode {ep+1}/{episodes} | Return: {ep_return:.1f}")
+        all_episode_frames.append(episode_frames)
+        print(f"[LAND] Episode {ep+1}/{episodes} | Return: {ep_return:.1f} | Frames: {len(episode_frames)}")
     
     # Print flag colors if extra flags were added
     if add_extra_flags and isinstance(env.env, ExtraFlagsWrapper):
@@ -218,6 +230,26 @@ def run_land_agent(
     
     env.close()
     print(f"Videos saved to: {video_path.absolute()}")
+    
+    # Save frames to HDF5 format
+    h5_file = video_path / "land_video.h5"
+    with h5py.File(h5_file, 'w') as f:
+        for ep_idx, frames in enumerate(all_episode_frames):
+            # Convert list of frames to numpy array
+            frames_array = np.array(frames, dtype=np.uint8)
+            # Create dataset for this episode
+            f.create_dataset(
+                f"episode_{ep_idx + 1}/frames",
+                data=frames_array,
+                compression="gzip",
+                compression_opts=4
+            )
+            # Store metadata
+            f[f"episode_{ep_idx + 1}"].attrs['num_frames'] = len(frames)
+            f[f"episode_{ep_idx + 1}"].attrs['num_actions'] = len(all_episode_actions[ep_idx])
+            f[f"episode_{ep_idx + 1}"].attrs['shape'] = frames_array.shape
+    
+    print(f"HDF5 video saved to: {h5_file.absolute()}")
     
     # Save actions to file
     actions_file = actions_path / "actions.txt"

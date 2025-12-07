@@ -16,4 +16,6 @@ dependencies = [
     "accelerate",
     "pillow",
     "torchvision",
+    "peft",
+    "bitsandbytes",
 ]

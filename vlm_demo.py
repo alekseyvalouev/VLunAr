@@ -8,10 +8,12 @@ import warnings
 # Suppress warnings for cleaner output
 warnings.filterwarnings("ignore")
 
+from environments.custom_lander import LunarLander
+
 def main():
-    print("Initializing LunarLander environment...")
+    print("Initializing Custom LunarLander environment...")
     # Initialize the environment with rgb_array render mode to capture frames
-    env = gym.make("LunarLander-v3", render_mode="rgb_array")
+    env = LunarLander(render_mode="rgb_array")
     
     # Reset the environment
     observation, info = env.reset(seed=42)
@@ -21,6 +23,7 @@ def main():
     for _ in range(60):
         action = env.action_space.sample()  # Random action
         observation, reward, terminated, truncated, info = env.step(action)
+        print(observation)
         if terminated or truncated:
             observation, info = env.reset()
 
@@ -46,7 +49,7 @@ def main():
         return
 
     # Prepare prompt
-    prompt = "describe the image"
+    prompt = "<image> describe this image in detail, include all objects and interactions:"
     
     print(f"Analyzing image with prompt: '{prompt}'...")
     
@@ -56,7 +59,7 @@ def main():
 
     # Generate response
     with torch.inference_mode():
-        generation = model.generate(**model_inputs, max_new_tokens=100, do_sample=False)
+        generation = model.generate(**model_inputs, max_new_tokens=400, do_sample=False)
         generation = generation[0][input_len:]
         decoded = processor.decode(generation, skip_special_tokens=True)
         

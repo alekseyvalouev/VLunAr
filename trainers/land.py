@@ -258,7 +258,7 @@ def main() -> None:
     parser.add_argument(
         "--model-dir",
         type=str,
-        default="/home/dils/VLunAr/checkpoints/land",
+        default=".checkpoints/land",
     )
     args = parser.parse_args()
 
@@ -277,3 +277,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+# %%

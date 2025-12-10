@@ -1,5 +1,9 @@
 uv.lock
 .venv/*
 videos/*
+__pycache__/
 checkpoints/*
+actions/*
+*.pyc
 dummy_output/*
+datasets/land_dataset

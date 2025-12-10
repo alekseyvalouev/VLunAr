@@ -39,6 +39,7 @@ SIDE_ENGINE_POWER = 0.6
 
 INITIAL_RANDOM = 1000.0  # Set 1500 to make game harder
 
+'''
 LANDER_POLY = [(-14, +17), (-17, 0), (-17, -10), (+17, -10), (+17, 0), (+14, +17)]
 LEG_AWAY = 20
 LEG_DOWN = 18
@@ -50,6 +51,33 @@ SIDE_ENGINE_AWAY = 12
 MAIN_ENGINE_Y_LOCATION = (
     4  # The Y location of the main engine on the body of the Lander.
 )
+'''
+# --- 2× smaller lander geometry ---
+
+# Body shape (all coordinates halved)
+LANDER_POLY = [
+    (-7,   +8.5),
+    (-8.5,  0),
+    (-8.5, -5),
+    ( 8.5, -5),
+    ( 8.5,  0),
+    ( 7,   +8.5),
+]
+
+# Legs scaled 0.5×
+LEG_AWAY = 10        # was 20
+LEG_DOWN = 9         # was 18
+LEG_W, LEG_H = 1, 4  # was 2, 8
+
+# Leave torque unchanged (physics parameter)
+LEG_SPRING_TORQUE = 40
+
+# Engines scaled 0.5×
+SIDE_ENGINE_HEIGHT = 7   # was 14
+SIDE_ENGINE_AWAY = 6     # was 12
+
+# Main engine vertical offset also halved
+MAIN_ENGINE_Y_LOCATION = 2   # was 4
 
 VIEWPORT_W = 224
 VIEWPORT_H = 224
@@ -69,6 +97,7 @@ class ContactDetector(contactListener):
         for i in range(2):
             if self.env.legs[i] in [contact.fixtureA.body, contact.fixtureB.body]:
                 self.env.legs[i].ground_contact = True
+                self.env.game_over = True
 
     def EndContact(self, contact):
         for i in range(2):
@@ -221,11 +250,13 @@ class LunarLander(gym.Env, EzPickle):
         init_x: float | None = None,
         init_y: float | None = None,
         random_initial_force: bool = True,
+        max_height: float | None = None,
     ):
         
         self.custom_init_x = init_x
         self.custom_init_y = init_y
         self.random_initial_force = random_initial_force
+        self.max_height = max_height
 
 
         EzPickle.__init__(
@@ -670,7 +701,7 @@ class LunarLander(gym.Env, EzPickle):
         reward -= s_power * 0.03
 
         terminated = False
-        if self.game_over or abs(state[0]) >= 1.0:
+        if self.game_over or abs(state[0]) >= 1.0 or (self.max_height is not None and state[1] >= self.max_height):
             terminated = True
             reward = -100
         if not self.lander.awake:
@@ -759,6 +790,8 @@ class LunarLander(gym.Env, EzPickle):
                         self.surf, color=obj.color2, points=path, closed=True
                     )
 
+                # Draw helipad flags
+                helipad_color = getattr(self, 'custom_helipad_color', (204, 204, 0))
                 for x in [self.helipad_x1, self.helipad_x2]:
                     x = x * SCALE
                     flagy1 = self.helipad_y * SCALE
@@ -772,7 +805,7 @@ class LunarLander(gym.Env, EzPickle):
                     )
                     pygame.draw.polygon(
                         self.surf,
-                        color=(204, 204, 0),
+                        color=helipad_color,
                         points=[
                             (x, flagy2),
                             (x, flagy2 - 10),
@@ -782,8 +815,37 @@ class LunarLander(gym.Env, EzPickle):
                     gfxdraw.aapolygon(
                         self.surf,
                         [(x, flagy2), (x, flagy2 - 10), (x + 25, flagy2 - 5)],
-                        (204, 204, 0),
+                        helipad_color,
                     )
+                
+                # Draw extra flags if specified
+                if hasattr(self, 'custom_extra_flags'):
+                    for flag_x1, flag_x2, flag_y, flag_color in self.custom_extra_flags:
+                        for x in [flag_x1, flag_x2]:
+                            x = x * SCALE
+                            flagy1 = flag_y * SCALE
+                            flagy2 = flagy1 + 50
+                            pygame.draw.line(
+                                self.surf,
+                                color=(255, 255, 255),
+                                start_pos=(x, flagy1),
+                                end_pos=(x, flagy2),
+                                width=1,
+                            )
+                            pygame.draw.polygon(
+                                self.surf,
+                                color=flag_color,
+                                points=[
+                                    (x, flagy2),
+                                    (x, flagy2 - 10),
+                                    (x + 25, flagy2 - 5),
+                                ],
+                            )
+                            gfxdraw.aapolygon(
+                                self.surf,
+                                [(x, flagy2), (x, flagy2 - 10), (x + 25, flagy2 - 5)],
+                                flag_color,
+                            )
 
         self.surf = pygame.transform.flip(self.surf, False, True)
 
@@ -898,5 +960,5 @@ class LunarLanderContinuous:
 
 if __name__ == "__main__":
     env = gym.make("LunarLander-v3", render_mode="rgb_array")
-    env = RecordVideo(env, video_folder="videos", name_prefix="heuristic", episode_trigger=lambda x: True)
+    env = RecordVideo(env, video_folder="videos", name_prefix="custom", episode_trigger=lambda x: True)
     demo_heuristic_lander(env, render=True)
